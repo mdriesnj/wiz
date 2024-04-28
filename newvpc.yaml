@@ -1,0 +1,190 @@
+---
+#AWSTemplateFormatVersion: "2024-04-28"
+
+Description: Template to create vpc for cluster
+
+# Metadata:
+
+Parameters:
+  VpcCIDR:
+    Type: String
+    Default: 10.101.0.0/16
+    Description: Enter cidr for VPC
+
+  Private1aCIDR:
+    Type: String
+    Default: 10.101.1.0/25
+  Private1bCIDR:
+    Type: String
+    Default: 10.101.2.0/25
+  Public1aCIDR:
+    Type: String
+    Default: 10.101.1.128/25
+  Public1bCIDR:
+    Type: String
+    Default: 10.101.2.128/25 
+
+
+Resources:
+  WizVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock:
+        Ref: VpcCIDR
+      EnableDnsSupport: 'true'
+      EnableDnsHostnames: 'true'
+      Tags:
+      - Key: name
+        Value: Wiz101-VPC
+  
+  PublicInternetGateway:  
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+      - Key: name
+        Value: Wiz101-IGW
+  
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: 
+        Ref: WizVPC
+      InternetGatewayId:
+        Ref: PublicInternetGateway
+
+  Private1a:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: WizVPC
+      CidrBlock: 
+        Ref: Private1aCIDR
+      AvailabilityZone: "us-east-1a"
+      Tags:
+        - Key: name
+          Value: Wiz101-Private1a
+        
+  Private1b:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: WizVPC
+      CidrBlock: 
+        Ref: Private1bCIDR
+      AvailabilityZone: "us-east-1b"
+      Tags:
+        - Key: name
+          Value: Wiz101-Private1b
+
+  Public1a:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: WizVPC
+      CidrBlock: 
+        Ref: Public1aCIDR
+      AvailabilityZone: "us-east-1a"
+      Tags:
+        - Key: name
+          Value: Wiz101-Public1a
+
+  Public1b:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: WizVPC
+      CidrBlock: 
+        Ref: Public1bCIDR
+      AvailabilityZone: "us-east-1b"
+      Tags:
+        - Key: name
+          Value: Wiz101-Public1b
+
+#-------------------------------Public route table --------------------------------------
+  publicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId:  
+        Ref: WizVPC
+      Tags:
+      - Key: name
+        Value: Wiz101-publicRouteTable
+        
+  publicRoute:
+    Type: AWS::EC2::Route
+    Properties:
+       RouteTableId:
+         Ref: publicRouteTable
+       DestinationCidrBlock: 0.0.0.0/0
+       GatewayId:
+         Ref: PublicInternetGateway
+
+  publicSubnetRouteTableAssociation1a:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:
+        Ref: Public1a
+      RouteTableId:
+        Ref: publicRouteTable
+
+  publicSubnetRouteTableAssociation1b:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:
+        Ref: Public1b
+      RouteTableId:
+        Ref: publicRouteTable
+
+#-------------------------------Private route table -------------------------------------         
+  privatecRouteTable1a:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId:  
+        Ref: WizVPC
+      Tags:
+      - Key: name
+        Value: Wiz101-privateRouteTable1a
+
+  privatecRouteTable1b:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId:  
+        Ref: WizVPC
+      Tags:
+      - Key: name
+        Value: Wiz101-privateRouteTable1b
+
+  NATGatewayEIP:
+     Type: AWS::EC2::EIP
+     Properties:
+        Domain: vpc
+
+  privateNATGateway:
+     Type: AWS::EC2::NatGateway
+     Properties:
+        AllocationId: !GetAtt NATGatewayEIP.AllocationId
+        SubnetId:
+          Ref: Private1a
+        ConnectivityType: public
+        Tags:
+        - Key: name
+          Value: Wiz101-privateNATGateway
+                  
+  RouteNATGateway1a:
+     Type: AWS::EC2::Route
+     Properties:
+        RouteTableId: !Ref privatecRouteTable1a
+        DestinationCidrBlock: '0.0.0.0/0'
+        NatGatewayId: !Ref privateNATGateway
+
+  RouteNATGateway1b:
+     Type: AWS::EC2::Route
+     Properties:
+        RouteTableId: !Ref privatecRouteTable1b
+        DestinationCidrBlock: '0.0.0.0/0'
+        NatGatewayId: !Ref privateNATGateway
+
+      
+          
+#Outputs:
+
